@@ -1,0 +1,38 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CLUtil", "CLUtil\CLUtil.vcxproj", "{55842953-E9FE-4B79-B72C-71791941A5A0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Saxpy", "Saxpy\Saxpy.vcxproj", "{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MatrixMult", "MatrixMult\MatrixMult.vcxproj", "{A52D654D-64DD-4B84-9EDE-32DABCC802E9}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Reduce", "Reduce\Reduce.vcxproj", "{4F0214C4-AD74-4D24-9C48-491FFEA9F03A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{55842953-E9FE-4B79-B72C-71791941A5A0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{55842953-E9FE-4B79-B72C-71791941A5A0}.Debug|Win32.Build.0 = Debug|Win32
+		{55842953-E9FE-4B79-B72C-71791941A5A0}.Release|Win32.ActiveCfg = Release|Win32
+		{55842953-E9FE-4B79-B72C-71791941A5A0}.Release|Win32.Build.0 = Release|Win32
+		{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}.Debug|Win32.ActiveCfg = Debug|Win32
+		{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}.Debug|Win32.Build.0 = Debug|Win32
+		{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}.Release|Win32.ActiveCfg = Release|Win32
+		{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}.Release|Win32.Build.0 = Release|Win32
+		{A52D654D-64DD-4B84-9EDE-32DABCC802E9}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A52D654D-64DD-4B84-9EDE-32DABCC802E9}.Debug|Win32.Build.0 = Debug|Win32
+		{A52D654D-64DD-4B84-9EDE-32DABCC802E9}.Release|Win32.ActiveCfg = Release|Win32
+		{A52D654D-64DD-4B84-9EDE-32DABCC802E9}.Release|Win32.Build.0 = Release|Win32
+		{4F0214C4-AD74-4D24-9C48-491FFEA9F03A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4F0214C4-AD74-4D24-9C48-491FFEA9F03A}.Debug|Win32.Build.0 = Debug|Win32
+		{4F0214C4-AD74-4D24-9C48-491FFEA9F03A}.Release|Win32.ActiveCfg = Release|Win32
+		{4F0214C4-AD74-4D24-9C48-491FFEA9F03A}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

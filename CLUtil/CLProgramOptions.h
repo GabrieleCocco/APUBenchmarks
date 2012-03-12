@@ -53,7 +53,15 @@ void clCreateDefaultProgramOptions(
 	CLProgramOption* log_file, 
 	const char* def_log_file,
 	CLProgramOption* append_to_file, 
-	const char* def_append_to_file);
+	const char* def_append_to_file,
+	CLProgramOption* test_host,
+	const char* def_test_host,
+	CLProgramOption* test_devices,
+	const char* def_test_devices,
+	CLProgramOption* min_devices_count,
+	const char* def_min_device_count,
+	CLProgramOption* max_devices_count,
+	const char* def_max_device_count);
 
 void clCreateProgramOption(
 	char* name, 

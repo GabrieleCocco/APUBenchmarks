@@ -78,7 +78,11 @@ int main(int argc, char* argv[])
 		&kernel_profiling, "n",
 		&local_size_opt, "128",
 		&log_file, "Saxpy_results.csv",
-		&append_to_file, "n");
+		&append_to_file, "n",
+		&test_host, "y",
+		&test_devices, "y",
+		&min_devices, "1",
+		&max_devices, "3");
 
 	/* Handle program options */
 	clCreateProgramOption(
@@ -96,7 +100,7 @@ int main(int argc, char* argv[])
 	clCreateProgramOption(
 		"Max vector size (Bytes)", "maxvs",
 		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"67108865",	1,
+		"67108864",	1,
 		&max_vector_size);
 
 	clCreateProgramOption(
@@ -136,34 +140,10 @@ int main(int argc, char* argv[])
 		&verify_output);
 
 	clCreateProgramOption(
-		"Min devices", "mindev",
-		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"1", 1,
-		&min_devices);
-		
-	clCreateProgramOption(
-		"Max devices", "maxdev",
-		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"2", 1,
-		&max_devices);
-
-	clCreateProgramOption(
 		"Number of native thread (0 for auto)", "cputhreads",
 		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
 		"4", 1,
 		&cpu_threads);
-		
-	clCreateProgramOption(
-		"Test host", "host",
-		CL_PROGRAM_OPTION_BOOL,	CL_PROGRAM_OPTION_SINGLE,
-		"n", 1,
-		&test_host);
-	
-	clCreateProgramOption(
-		"Test OpenCL devices", "ocldev",
-		CL_PROGRAM_OPTION_BOOL,	CL_PROGRAM_OPTION_SINGLE,
-		"y", 1,
-		&test_devices);
 	
 	CLProgramOption* options[] = { 
 		&kernel_path,
@@ -259,7 +239,7 @@ int main(int argc, char* argv[])
 			*output << "Vector size (bytes);Samples;Start time;End time;Duration" << std::endl;
 
 			for(unsigned int vector_size = (unsigned int)clProgramOptionAsInt(&min_vector_size); 
-				vector_size < (unsigned int)clProgramOptionAsInt(&max_vector_size);
+				vector_size <= (unsigned int)clProgramOptionAsInt(&max_vector_size);
 				vector_size *= (unsigned int)clProgramOptionAsInt(&increment)) 
 			{
 				printf("- Vector size %10d bytes...", vector_size);
@@ -355,7 +335,7 @@ int main(int argc, char* argv[])
 					*output << std::endl;
 				
 					for(unsigned int vector_size = (unsigned int)clProgramOptionAsInt(&min_vector_size); 
-						vector_size < (unsigned int)clProgramOptionAsInt(&max_vector_size);
+						vector_size <= (unsigned int)clProgramOptionAsInt(&max_vector_size);
 						vector_size *= (unsigned int)clProgramOptionAsInt(&increment)) 
 					{
 						printf("- Vector size %10d bytes...", vector_size);

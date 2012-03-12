@@ -15,7 +15,8 @@ typedef struct ReduceProfilingData {
 
 	bool verify_output;
 	int reference;
-	
+	int reduce_limit;
+
 	cl_mem_flags src_flags;
 	cl_mem_flags dst_flags; 
 	int map_src;
@@ -26,6 +27,8 @@ typedef struct ReduceDeviceData {
 	ReduceProfilingData* profiling_data;
 	unsigned int offset;
 	unsigned int index;
+	int* output;
+	double* timer;
 } ReduceDeviceData;
 
 CLProfilingResult runHostComputation(void* data);

@@ -1,8 +1,8 @@
 #include "general.h"
 
-void computeInput(int* data, unsigned int size) {
+void computeInput(int* data, unsigned int size, unsigned int offset) {
 	for(unsigned int i = 0; i < size; i++)
-		data[i] = (int)(i & 0xFF);
+		data[i] = (int)(1);
 }
 
 int computeOutput(int* data, unsigned int size) {

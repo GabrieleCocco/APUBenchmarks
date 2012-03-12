@@ -1,5 +1,3 @@
-#define blockSize 128
-
 __kernel void reduce0(__global int *g_idata, __local int* sdata, unsigned int n, __global int *g_odata)
 {
     // load shared mem
@@ -175,28 +173,26 @@ __kernel void reduce4(__global int *g_idata, __local int* sdata, unsigned int n,
     if (tid == 0) g_odata[get_group_id(0)] = sdata[0];
 }
 
-__kernel void reduce_serial(__global float* buffer, __const int block, __const int length, __global float* result) {  
+__kernel void reduce_serial(__global int* buffer, __const int block, __const int length, __global int* result) {  
 	int global_index = get_global_id(0) * block;
-	float accumulator = 0;
+	int accumulator = 0;
 	int upper_bound = (get_global_id(0) + 1) * block;
 	if (upper_bound > length) upper_bound = length;
 	while (global_index < upper_bound) {
-		float element = buffer[global_index];
-		accumulator += element;
+		accumulator += buffer[global_index];
 		global_index++;
 	}
 	result[get_group_id(0)] = accumulator;
 }
 
 
-__kernel void reduce_serial_int4(__global float4* buffer, __const int block, __const int length, __global float4* result) {  
+__kernel void reduce_serial_int4(__global int4* buffer, __const int block, __const int length, __global int4* result) {  
 	int global_index = get_global_id(0) * block;
-	float4 accumulator = 0;
+	int4 accumulator = 0;
 	int upper_bound = (get_global_id(0) + 1) * block;
 	if (upper_bound > length) upper_bound = length;
 	while (global_index < upper_bound) {
-		float4 element = buffer[global_index];
-		accumulator += element;
+		accumulator += buffer[global_index];
 		global_index++;
 	}
 	result[get_group_id(0)] = accumulator;

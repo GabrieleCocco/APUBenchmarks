@@ -14,6 +14,7 @@ CLProgramOption cpu_threads;
 CLProgramOption test_int_4;
 CLProgramOption test_duration;
 CLProgramOption verify_output;
+CLProgramOption reduce_limit;
 
 CLProgramOption test_host;
 CLProgramOption test_opencl_devices;

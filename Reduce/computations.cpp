@@ -30,7 +30,7 @@ CLProfilingResult runHostComputation(void* data) {
 	test_input = (int*) malloc(data_size * sizeof(int));	
 	if(cpu_threads > 1) 
 		temp_output = (int*)malloc(cpu_threads * sizeof(int));
-	computeInput(test_input, data_size);
+	computeInput(test_input, data_size, 0);
 
 	if(cpu_threads == 1) {
 		test_output = 0;
@@ -97,6 +97,8 @@ CLProfilingResult runHostComputation(void* data) {
 }
 
 DWORD WINAPI handleComputation(void* data) {
+	//Timer timer;
+	//timer.start();
 	ReduceDeviceData* h_data = (ReduceDeviceData*)data;
 	unsigned int device_index = h_data->index;
 	unsigned int device_offset = h_data->offset;
@@ -110,39 +112,35 @@ DWORD WINAPI handleComputation(void* data) {
 	unsigned int global_size = h_data->profiling_data->global_sizes[device_index];
 	unsigned int data_size = h_data->profiling_data->data_sizes[device_index];
 	unsigned int type_size = h_data->profiling_data->type_size;
-	
-	unsigned int whole_data_size = 0;
-	for(unsigned int i = 0; i < h_data->profiling_data->device_count; i++)
-		whole_data_size += h_data->profiling_data->data_sizes[i] * h_data->profiling_data->type_size;
 
 	CLDeviceEnvironment environment = h_data->profiling_data->environments[device_index];
 	cl_kernel kernel = environment.kernels[h_data->profiling_data->kernel_index[device_index]];
 	bool cpu = (environment.info.type == CL_DEVICE_TYPE_CPU);
-
+	unsigned int reduce_limit = h_data->profiling_data->reduce_limit;
+	if(reduce_limit == 0)
+		reduce_limit = 2;
+	
 	int* test_input_pointer = NULL;
 	int* test_output_pointer = NULL;
 	cl_mem test_input_buffer = NULL;
 	cl_mem test_output_buffer = NULL;
 	int test_output = 0;
-	bool ok = 0;
 
 	//global_size = local_size * 2;
-	if(cpu)
-		local_size = 1;
 	unsigned int output_data_size = global_size / local_size;
 
 	//alloc vectors
 	if(!map_src) 
-		test_input_pointer = (int*)malloc(data_size * sizeof(int));
+		test_input_pointer = (int*)malloc(data_size * type_size * sizeof(int));
 	if(!map_dst)
-		test_output_pointer = (int*)malloc(output_data_size * sizeof(int));		
+		test_output_pointer = (int*)malloc(output_data_size * type_size * sizeof(int));		
 	test_input_buffer = clCreateBuffer(environment.context, src_flags, data_size * type_size * sizeof(int), NULL, NULL);
 	test_output_buffer = clCreateBuffer(environment.context, dst_flags, output_data_size * type_size * sizeof(int), NULL, NULL);
 	
 	//init data
 	if(map_src) 
 		test_input_pointer = (int*)clEnqueueMapBuffer(environment.queue, test_input_buffer, CL_TRUE, CL_MAP_WRITE, 0, sizeof(int) * type_size * data_size, 0, NULL, NULL, NULL);
-	computeInput(test_input_pointer, data_size);
+	computeInput(test_input_pointer, data_size * type_size, device_offset);
 	if(map_src)
 		clEnqueueUnmapMemObject(environment.queue, test_input_buffer, test_input_pointer, 0, NULL, NULL);		
 	else 
@@ -155,27 +153,26 @@ DWORD WINAPI handleComputation(void* data) {
 	//set arguments
 
 	//execute
-	unsigned int ratio = data_size / global_size;
+	unsigned int ratio = 2;
 	unsigned int new_output_data_size = output_data_size;
-	unsigned int kernel_data_size = data_size / type_size;
 	clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&test_input_buffer);
 	if(!cpu)
 		clSetKernelArg(kernel, 1, local_size * type_size * sizeof(int), NULL);
 	else {
-		unsigned int block_size = kernel_data_size / global_size;
+		unsigned int block_size = data_size / global_size;
 		clSetKernelArg(kernel, 1, sizeof(cl_int), &block_size);
 	}
-	clSetKernelArg(kernel, 2, sizeof(cl_int), &kernel_data_size);
+	clSetKernelArg(kernel, 2, sizeof(cl_int), &data_size);
 	clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&test_output_buffer);
 	clEnqueueNDRangeKernel(environment.queue, kernel, 1, NULL, &global_size, &local_size, 0, NULL, NULL);
 
 	//Update data_size = output of the previous iteration (output_data_size), global_size proportionally changed
 	if(!cpu) {
-		while((new_output_data_size / type_size) >= local_size) {
+		while(new_output_data_size >= reduce_limit) {
 			unsigned int new_global_size = new_output_data_size / ratio;
-			unsigned int new_data_size = new_output_data_size / type_size;
+			unsigned int new_data_size = new_output_data_size;
 			unsigned int new_local_size = local_size > new_global_size ? new_global_size : local_size;
-			new_output_data_size = (new_global_size / new_local_size) * type_size;
+			new_output_data_size = new_global_size / new_local_size;
 			clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&test_output_buffer);
 			clSetKernelArg(kernel, 1, new_local_size * type_size * sizeof(int), NULL);
 			clSetKernelArg(kernel, 2, sizeof(cl_int), &new_data_size);
@@ -191,11 +188,8 @@ DWORD WINAPI handleComputation(void* data) {
 	for(unsigned int i = 0; i < new_output_data_size * type_size; i++)
 		test_output += test_output_pointer[i];
 	
-	/* Verify result */
-	if(h_data->profiling_data->verify_output)
-		ok = (compare(test_output, h_data->profiling_data->reference) == 0);
-	if(!ok)
-		std::cout << "Computation failed!" << std::endl;
+	//set result
+	*h_data->output = test_output;
 
 	/* Free resources */
 	if(!map_src)
@@ -207,26 +201,94 @@ DWORD WINAPI handleComputation(void* data) {
 	else
 		free(test_output_pointer);
 	clReleaseMemObject(test_output_buffer);
-
-	return ok;
+	//*h_data->timer = timer.get();
+	return 0;
 }
 
 CLProfilingResult runDeviceComputation(void* data) {
 	CLProfilingResult result;
 	result.success = true;
-
-	ReduceProfilingData* profiling_data = (ReduceProfilingData*)data;
+	
+	int output = 0;
+	//double timer = 0;
+	ReduceProfilingData* pf_data = (ReduceProfilingData*)data;
 	ReduceDeviceData device_data;
 	device_data.index = 0;
 	device_data.offset = 0;
-	device_data.profiling_data = profiling_data;
-	
+	device_data.profiling_data = pf_data;
+	device_data.output = &output;
+	//device_data.timer = &timer;
 	handleComputation(&device_data);
+	
+		//printf("\n[Thread %d time = %f]", 0, timer);
+	/* Verify result */
+	if(pf_data->verify_output)
+		result.success = (compare(output, pf_data->reference) == 0);
+	if(!result.success)
+		std::cout << "Computation failed!" << std::endl;
+
 	return result;
 }
 
-CLProfilingResult runHeteroSeparatedComputation(void* data) {
+CLProfilingResult runHeteroSeparatedComputation(void* data) {	
 	CLProfilingResult result;
 	result.success = true;
+	
+	ReduceProfilingData* pf_data = (ReduceProfilingData*)data;
+	HANDLE* thread_handles = (HANDLE*)malloc(pf_data->device_count * sizeof(HANDLE)); 
+	ReduceDeviceData* params = (ReduceDeviceData*)malloc(pf_data->device_count * sizeof(ReduceDeviceData));
+	int* output = (int*)malloc(pf_data->device_count * sizeof(int));
+	//double* timer = (double*)malloc(pf_data->device_count * sizeof(double));
+	unsigned int offset = 0;
+	#pragma unroll 2
+	for(unsigned int i = 0; i < pf_data->device_count - 1; i++) {
+		params[i].profiling_data = pf_data;
+		params[i].offset = offset;
+		params[i].index = i;
+		params[i].output = &output[i];
+		//params[i].timer = &timer[i];
+		offset += pf_data->type_size * pf_data->data_sizes[i];
+		
+		//Assume size = N * threads
+		DWORD dwGenericThread;
+		thread_handles[i] = CreateThread(
+			NULL,
+			0,
+			handleComputation,
+			&params[i],
+			0,
+			&dwGenericThread);
+			
+		if(thread_handles[i] == NULL) {
+			DWORD dwError = GetLastError();
+			std::cout<<"SCM:Error in Creating thread"<<dwError<<std::endl ;
+		}
+	}
+	
+	#pragma unroll 2
+	for(unsigned int i = 0; i < pf_data->device_count- 1; i++)
+		WaitForSingleObject(thread_handles[i], INFINITE);
+	/*
+	for(unsigned int i = 0; i < pf_data->device_count; i++) {
+		printf("\n[Thread %d time = %f (data = %d)]", i, timer[i], pf_data->data_sizes[i]);
+	}
+	printf("\n"); */
+	/* Inter-device final reduce stage */
+	#pragma unroll 2
+	for(unsigned int i = 1; i < pf_data->device_count- 1; i++)
+		output[0] += output[i];
+
+	/* Verify result */
+	if(pf_data->verify_output)
+		result.success = (compare(output[0], pf_data->reference) == 0);
+	if(!result.success)
+		std::cout << "Computation failed!" << std::endl;
+	
+	/* Free thread resource */
+	free(thread_handles);
+	free(params);
+	free(output);
+	//free(timer);
+
 	return result;
 }

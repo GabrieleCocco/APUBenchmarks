@@ -10,32 +10,63 @@ void scatterWork(
 	unsigned int* global_sizes,
 	unsigned int* local_sizes) {
 
-	/* Compute number of elements per device */
-	unsigned int elements_per_device = data_size / device_count;
-	for(unsigned int i = 0; i < device_count; i++) 
-		data_sizes[i] = elements_per_device;
+	if(device_count == 1 || device_count % 2 == 0) {
+		/* Compute number of elements per device */
+		unsigned int elements_per_device = data_size / device_count;
+		for(unsigned int i = 0; i < device_count; i++) 
+			data_sizes[i] = elements_per_device;
 
-	/* Adjust the elements so if data_size cannot be divided by device_count */
-	unsigned int remaining_elements = data_size % device_count;
-	unsigned int current_index = 0;
-	while(remaining_elements > 0) {
-		data_sizes[current_index]++;
-		remaining_elements--;
-		current_index = (current_index + 1) / device_count;
-	}
-
-	/* Set global sizes so that is is multiple of the local size 
-	 * On CPU devices, the reduce is serial. 
-	 * Local size is 1 and global size is the number of cores chosen
-	 */
-	for(unsigned int i = 0; i < device_count; i++) {
-		if(devices[i].type == CL_DEVICE_TYPE_CPU) {
-			global_sizes[i] = cpu_core_count;
-			local_sizes[i] = 1;
+		/* Adjust the elements so if data_size cannot be divided by device_count */
+		unsigned int remaining_elements = data_size % device_count;
+		unsigned int current_index = 0;
+		while(remaining_elements > 0) {
+			data_sizes[current_index]++;
+			remaining_elements--;
+			current_index = (current_index + 1) % device_count;
 		}
-		else {
-			global_sizes[i] = clRoundUp(data_sizes[i] / 2, preferred_local_size);
-			local_sizes[i] = preferred_local_size;
+
+		/* Set global sizes so that is is multiple of the local size 
+		 * On CPU devices, the reduce is serial. 
+		 * Local size is 1 and global size is the number of cores chosen
+		 */
+		for(unsigned int i = 0; i < device_count; i++) {
+			if(devices[i].type == CL_DEVICE_TYPE_CPU) {
+				global_sizes[i] = cpu_core_count;
+				local_sizes[i] = 1;
+			}
+			else {
+				global_sizes[i] = clRoundUp(data_sizes[i], preferred_local_size) / 2;
+				local_sizes[i] = preferred_local_size;
+			}
+		}
+	}
+	else {
+		/* Compute number of elements per device */
+		for(unsigned int i = 0; i < device_count; i++) 
+			data_sizes[i] = 0;
+
+		unsigned int remaining_assigns = 4;
+		unsigned int current_index = 0;
+		unsigned int elements_per_device = data_size / 4;
+		while(remaining_assigns > 0) {
+			data_sizes[current_index] += elements_per_device;
+			remaining_assigns--;
+			current_index = (current_index + 1) % device_count;
+		}
+				
+		/* Set global sizes so that is is multiple of the local size 
+		 * On CPU devices, the reduce is serial. 
+		 * Local size is 1 and global size is the number of cores chosen
+		 */
+		for(unsigned int i = 0; i < device_count; i++) {
+			if(devices[i].type == CL_DEVICE_TYPE_CPU) {
+				global_sizes[i] = cpu_core_count;
+				local_sizes[i] = 1;
+			}
+			else {
+				global_sizes[i] = clRoundUp(data_sizes[i], preferred_local_size) / 2;
+				local_sizes[i] = preferred_local_size;
+			}
 		}
 	}
 }
@@ -51,7 +82,11 @@ int main(int argc, char* argv[])
 		&kernel_profiling, "n",
 		&local_size, "128",
 		&log_file, "Reduce_results.csv",
-		&append_to_file, "n");
+		&append_to_file, "n",		
+		&test_host, "y",
+		&test_opencl_devices, "y",
+		&min_devices, "1",
+		&max_devices, "3");
 
 	/* Handle program options */
 	clCreateProgramOption(
@@ -63,7 +98,7 @@ int main(int argc, char* argv[])
 	clCreateProgramOption(
 		"Max vector size (Bytes)", "maxvs",
 		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"140000000", 1,
+		"67108864", 1,
 		&max_vector_size);
 
 	clCreateProgramOption(
@@ -109,28 +144,10 @@ int main(int argc, char* argv[])
 		&cpu_threads);
 		
 	clCreateProgramOption(
-		"Min devices", "mindev",
+		"Reduce iteration limit (0 for full reduce on device)", "redlim",
 		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"1", 1,
-		&min_devices);
-		
-	clCreateProgramOption(
-		"Max devices", "maxdev",
-		CL_PROGRAM_OPTION_INT, CL_PROGRAM_OPTION_SINGLE,
-		"2", 1,
-		&max_devices);
-
-	clCreateProgramOption(
-		"Test host", "host",
-		CL_PROGRAM_OPTION_BOOL,	CL_PROGRAM_OPTION_SINGLE,
-		"y", 1,
-		&test_host);
-			
-	clCreateProgramOption(
-		"Test OpenCL devices", "ocldev",
-		CL_PROGRAM_OPTION_BOOL,	CL_PROGRAM_OPTION_SINGLE,
-		"y", 1,
-		&test_opencl_devices);
+		"0", 1,
+		&reduce_limit);
 		
 	CLProgramOption* options[] = { 
 		&kernel_path,
@@ -142,6 +159,7 @@ int main(int argc, char* argv[])
 		&min_vector_size, 
 		&max_vector_size,
 		&increment, 
+		&reduce_limit,
 		&tries,
 		&test_duration,
 		&wait,
@@ -154,7 +172,7 @@ int main(int argc, char* argv[])
 		&log_file,
 		&append_to_file };
 	
-	unsigned int option_count = 20;
+	unsigned int option_count = 21;
 	clHandleProgramOptions(options, option_count);
 	std::cout << std::endl << "- Program options summarized below" << std::endl;
 	clPrintProgramOptions(options, option_count);
@@ -215,6 +233,7 @@ int main(int argc, char* argv[])
 	/* Set up data struct required by computations */
 	ReduceProfilingData pf_data;
 	pf_data.verify_output = clProgramOptionAsBool(&verify_output);
+	pf_data.reduce_limit = clProgramOptionAsInt(&reduce_limit);
 
 	/* CPU sequential */	
 	if(clProgramOptionAsBool(&test_host)) {
@@ -224,7 +243,7 @@ int main(int argc, char* argv[])
 			*output << "Vector size (bytes);Samples;Start time;End time;Duration" << std::endl;
 
 			for(unsigned int vector_size = (unsigned int)clProgramOptionAsInt(&min_vector_size); 
-				vector_size < (unsigned int)clProgramOptionAsInt(&max_vector_size);
+				vector_size <= (unsigned int)clProgramOptionAsInt(&max_vector_size);
 				vector_size *= (unsigned int)clProgramOptionAsInt(&increment)) 
 			{
 				printf("- Vector size %10d bytes...", vector_size);
@@ -236,7 +255,7 @@ int main(int argc, char* argv[])
 				/* Compute reference if needed */
 				if(clProgramOptionAsBool(&verify_output)) {
 					int* input = (int*)malloc(vector_size);
-					computeInput(input, data_size);
+					computeInput(input, data_size, 0);
 					pf_data.reference = computeOutput(input, data_size);
 					free(input);
 				}
@@ -321,7 +340,7 @@ int main(int argc, char* argv[])
 					*output << std::endl;
 				
 					for(unsigned int vector_size = (unsigned int)clProgramOptionAsInt(&min_vector_size); 
-						vector_size < (unsigned int)clProgramOptionAsInt(&max_vector_size);
+						vector_size <= (unsigned int)clProgramOptionAsInt(&max_vector_size);
 						vector_size *= (unsigned int)clProgramOptionAsInt(&increment)) 
 					{
 						printf("- Vector size %10d bytes...", vector_size);
@@ -339,16 +358,16 @@ int main(int argc, char* argv[])
 							host_cores,
 							data_sizes, global_sizes, local_sizes);
 						for(unsigned int i = 0; i < device_count; i++) {
-							if(devices[i].type == CL_DEVICE_TYPE_GPU)
+							if(selected_devices[i].type == CL_DEVICE_TYPE_GPU)
 								kernel_index[i] = 0;
 							else
-								kernel_index[i] = 1;
+								kernel_index[i] = 2;
 						}
 
 						/* Compute reference if needed */
 						if(clProgramOptionAsBool(&verify_output)) {
 							int* input = (int*)malloc(vector_size);
-							computeInput(input, vector_size / sizeof(float));
+							computeInput(input, vector_size / sizeof(float), 0);
 							pf_data.reference = computeOutput(input, vector_size / sizeof(float));
 							free(input);
 						}
@@ -403,8 +422,8 @@ int main(int argc, char* argv[])
 								host_cores,
 								data_sizes, global_sizes, local_sizes);
 							for(unsigned int i = 0; i < device_count; i++) {
-								if(devices[i].type == CL_DEVICE_TYPE_GPU)
-									kernel_index[i] = 2;
+								if(selected_devices[i].type == CL_DEVICE_TYPE_GPU)
+									kernel_index[i] = 1;
 								else
 									kernel_index[i] = 3;
 							}

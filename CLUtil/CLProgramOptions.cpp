@@ -235,7 +235,51 @@ void clCreateDefaultProgramOptions(
 	CLProgramOption* log_file, 
 	const char* def_log_file,
 	CLProgramOption* append_to_file, 
-	const char* def_append_to_file) {
+	const char* def_append_to_file,
+	CLProgramOption* test_host,
+	const char* def_test_host,
+	CLProgramOption* test_devices,
+	const char* def_test_devices,
+	CLProgramOption* min_device_count,
+	const char* def_min_device_count,
+	CLProgramOption* max_device_count,
+	const char* def_max_device_count) {
+		
+	clCreateProgramOption(
+		"Test host",
+		"host",
+		CL_PROGRAM_OPTION_BOOL,
+		CL_PROGRAM_OPTION_SINGLE,
+		def_test_host,
+		1,
+		test_host);
+	
+	clCreateProgramOption(
+		"Test OpenCL devices",
+		"devices",
+		CL_PROGRAM_OPTION_BOOL,
+		CL_PROGRAM_OPTION_SINGLE,
+		def_test_devices,
+		1,
+		test_devices);
+		
+	clCreateProgramOption(
+		"Minimum number of devices",
+		"mindev",
+		CL_PROGRAM_OPTION_INT,
+		CL_PROGRAM_OPTION_SINGLE,
+		def_min_device_count,
+		1,
+		min_device_count);
+	
+	clCreateProgramOption(
+		"Maximum number of devices",
+		"maxdev",
+		CL_PROGRAM_OPTION_INT,
+		CL_PROGRAM_OPTION_SINGLE,
+		def_max_device_count,
+		1,
+		max_device_count);
 
 	clCreateProgramOption(
 		"Kernel file path",
@@ -256,7 +300,7 @@ void clCreateDefaultProgramOptions(
 		kernel_functions);
 	
 	clCreateProgramOption(
-		"Kernel build options",
+		"Program build options",
 		"kopts",
 		CL_PROGRAM_OPTION_STRING,
 		CL_PROGRAM_OPTION_SINGLE,
@@ -274,7 +318,7 @@ void clCreateDefaultProgramOptions(
 		kernel_profiling);
 	
 	clCreateProgramOption(
-		"Work group size",
+		"Work-group size",
 		"wgsze",
 		CL_PROGRAM_OPTION_INT,
 		CL_PROGRAM_OPTION_SINGLE,

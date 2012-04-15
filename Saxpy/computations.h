@@ -37,4 +37,7 @@ CLProfilingResult runHostComputation(void* data);
 CLProfilingResult runDeviceComputation(void* data);
 CLProfilingResult runHeteroSeparatedComputation(void* data);
 DWORD WINAPI handleComputation(void* data);
+
+void computeInput(float* x, float* y, unsigned int size);
+void computeOutput(float* x, float* y, float* output, float a, unsigned int size);
 #endif

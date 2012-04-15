@@ -19,7 +19,7 @@
 //! Matrix multiplication on the device: C = A * B
 //! uiWA is A's width and uiWB is B's width
 ////////////////////////////////////////////////////////////////////////////////
-kernel void matrixMul(__global float* C, __global float* A, __global float* B, int uiWA, int uiWB) {
+kernel void matrixMul(__global float* C, __global float* A, __global float* B, int uiWA, int hA, int uiWB) {
 	// Block index
     int bx = get_group_id(0);
     int by = get_group_id(1);
@@ -28,64 +28,70 @@ kernel void matrixMul(__global float* C, __global float* A, __global float* B, i
     int tx = get_local_id(0);
     int ty = get_local_id(1);
 
-    // Index of the first sub-matrix of A processed by the block
-    int aBegin = uiWA * BLOCK_SIZE * by;
+	//Global index
+	int gx = get_global_id(0);
+	int gy = get_global_id(1);
 
-    // Index of the last sub-matrix of A processed by the block
-    int aEnd   = aBegin + uiWA - 1;
+	// Index of the first sub-matrix of A processed by the block
+	int aBegin = uiWA * BLOCK_SIZE * by;
+	int heightBegin = by * BLOCK_SIZE;
 
-    // Step size used to iterate through the sub-matrices of A
-    int aStep  = BLOCK_SIZE;
+	// Index of the last sub-matrix of A processed by the block
+	int aEnd   = aBegin + uiWA - 1;
 
-    // Index of the first sub-matrix of B processed by the block
-    int bBegin = BLOCK_SIZE * bx;
+	// Step size used to iterate through the sub-matrices of A
+	int aStep  = BLOCK_SIZE;
 
-    // Step size used to iterate through the sub-matrices of B
-    int bStep  = BLOCK_SIZE * uiWB;
+	// Index of the first sub-matrix of B processed by the block
+	int bBegin = BLOCK_SIZE * bx;
 
-    // Csub is used to store the element of the block sub-matrix
-    // that is computed by the thread
-    float Csub = 0.0f;
+	// Step size used to iterate through the sub-matrices of B
+	int bStep  = BLOCK_SIZE * uiWB;
+
+	// Csub is used to store the element of the block sub-matrix
+	// that is computed by the thread
+	float Csub = 0.0f;
 	
-    // Declaration of the local memory array As 
-    // used to store the sub-matrix of A
-    __local DATATYPE As[BLOCK_SIZE][BLOCK_SIZE];
+	// Declaration of the local memory array As 
+	// used to store the sub-matrix of A
+	__local DATATYPE As[BLOCK_SIZE][BLOCK_SIZE];
  
-    // Declaration of the local memory array Bs 
-    // used to store the sub-matrix of B
-    __local DATATYPE Bs[BLOCK_SIZE][BLOCK_SIZE];
+	// Declaration of the local memory array Bs 
+	// used to store the sub-matrix of B
+	__local DATATYPE Bs[BLOCK_SIZE][BLOCK_SIZE];
 
-    // Loop over all the sub-matrices of A and B
-    // required to compute the block sub-matrix
-    for (int a = aBegin, b = bBegin;
-             a <= aEnd;
-             a += aStep, b += bStep) {
+	// Loop over all the sub-matrices of A and B
+	// required to compute the block sub-matrix
+	for (int a = aBegin, b = bBegin;
+				a <= aEnd;
+				a += aStep, b += bStep) {
 
-        // Load the matrices from device memory
-        // to shared memory; each thread loads
-        // one element of each matrix
-        As[ty][tx] = A[a + uiWA * ty + tx];
-        Bs[ty][tx] = B[b + uiWB * ty + tx];
-	
-        // Synchronize to make sure the matrices are loaded
-        barrier(CLK_LOCAL_MEM_FENCE);
+		// Load the matrices from device memory
+		// to shared memory; each thread loads
+		// one element of each matrix
+		As[ty][tx] = A[a + uiWA * ty + tx];
+		Bs[ty][tx] = B[b + uiWB * ty + tx];
 
-        // Multiply the two matrices together;
-        // each thread computes one element
-        // of the block sub-matrix        
-        #pragma unroll BLOCK_SIZE
-        for (int k = 0; k < BLOCK_SIZE; ++k)
-            Csub += As[ty][k] * Bs[k][tx];
+		// Synchronize to make sure the matrices are loaded
+		barrier(CLK_LOCAL_MEM_FENCE);
 
-        // Synchronize to make sure that the preceding
-        // computation is done before loading two new
-        // sub-matrices of A and B in the next iteration
-        barrier(CLK_LOCAL_MEM_FENCE);
-    }
+		// Multiply the two matrices together;
+		// each thread computes one element
+		// of the block sub-matrix  
+		#pragma unroll BLOCK_SIZE
+		for (int k = 0; k < BLOCK_SIZE; ++k)
+			Csub += As[ty][k] * Bs[k][tx];
 
-    // Write the block sub-matrix to device memory;
-    // each thread writes one element
-    C[get_global_id(1) * get_global_size(0) + get_global_id(0)] = Csub;
+		// Synchronize to make sure that the preceding
+		// computation is done before loading two new
+		// sub-matrices of A and B in the next iteration
+		barrier(CLK_LOCAL_MEM_FENCE);
+	}
+
+	// Write the block sub-matrix to device memory;
+	// each thread writes one element
+	C[gy * get_global_size(0) + gx] = Csub;
+
 }
 
 // kernel.cl
@@ -93,22 +99,24 @@ kernel void matrixMul(__global float* C, __global float* A, __global float* B, i
 // Device code.
   
 // OpenCL Kernel
-__kernel void matrixMulBase(__global DATATYPE* C, __global DATATYPE* A, __global DATATYPE* B, int wA, int wB) { 
+__kernel void matrixMulBase(__global DATATYPE* C, __global DATATYPE* A, __global DATATYPE* B, int wA, int hA, int wB) { 
 	// 2D Thread ID
 	int tx = get_global_id(0);
 	int ty = get_global_id(1);
  
-	// value stores the element 
-	// that is computed by the thread
-	DATATYPE value = 0;
-	#pragma unroll
-	for (int k = 0; k < wA; ++k)
-	{
-		DATATYPE elementA = A[ty * wA + k];
-		DATATYPE elementB = B[k * wB + tx];
-		value += elementA * elementB;
+	if(ty < hA && tx < wB) {
+		// value stores the element 
+		// that is computed by the thread
+		DATATYPE value = 0;
+		#pragma unroll
+		for (int k = 0; k < wA; ++k)
+		{
+			DATATYPE elementA = A[ty * wA + k];
+			DATATYPE elementB = B[k * wB + tx];
+			value += elementA * elementB;
+		}
+		// Write the matrix to device memory each 
+		// thread writes one element
+		C[ty * wB + tx] = value;
 	}
-	// Write the matrix to device memory each 
-	// thread writes one element
-	C[ty * wB + tx] = value;
 }

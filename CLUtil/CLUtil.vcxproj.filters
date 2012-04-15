@@ -47,5 +47,8 @@
     <ClInclude Include="CLProfiling.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
+    <ClInclude Include="CLSize.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

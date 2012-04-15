@@ -1,28 +1,5 @@
 #include "saxpy.h"
 
-void* computeCorrectOutput(unsigned int size, float multiplier) {
-	float* output = (float*) malloc(size * sizeof(float));
-	float* x = (float*)malloc(size * sizeof(float));
-	float* y = (float*)malloc(size * sizeof(float));	
-	for(unsigned int i = 0; i < size; i++) {
-		x[i] = float(i);
-		y[i] = float(size  -1 - i);
-	}
-
-	for (unsigned int i = 0; i < size; i++) 
-        output[i] = (multiplier * x[i]) + y[i]; 
-	
-	if(x != NULL) { 
-		free(x);
-		x = NULL;
-	}
-	if(y != NULL) { 
-		free(y);
-		y = NULL;
-	}
-	return output;
-}
-
 void scatterWork(
 	CLDeviceInfo* devices, 
 	unsigned int device_count, 
@@ -249,9 +226,15 @@ int main(int argc, char* argv[])
 				unsigned int data_size = vector_size / sizeof(float);
 
 				/* Compute reference if needed */
-				float* reference = NULL;	
-				if(clProgramOptionAsBool(&verify_output))
-					reference = (float*)computeCorrectOutput(data_size, clProgramOptionAsFloat(&vector_multiplier));
+				float* reference = (float*)malloc(vector_size);	
+				if(clProgramOptionAsBool(&verify_output)) {
+					float* x = (float*)malloc(vector_size);
+					float* y = (float*)malloc(vector_size);
+					computeInput(x, y, data_size);
+					computeOutput(x, y, reference, clProgramOptionAsFloat(&vector_multiplier), data_size);
+					free(x);
+					free(y);
+				}
 		
 				SYSTEMTIME start, end;
 				unsigned int samples;
@@ -360,10 +343,16 @@ int main(int argc, char* argv[])
 						}
 
 						/* Compute reference if needed */
-						float* reference = NULL;	
-						if(clProgramOptionAsBool(&verify_output))
-							reference = (float*)computeCorrectOutput(vector_size / sizeof(float), clProgramOptionAsFloat(&vector_multiplier));
-		
+						float* reference = (float*)malloc(vector_size);
+						if(clProgramOptionAsBool(&verify_output)) {
+							float* x = (float*)malloc(vector_size);
+							float* y = (float*)malloc(vector_size);
+							computeInput(x, y, vector_size / sizeof(float));
+							computeOutput(x, y, reference, clProgramOptionAsFloat(&vector_multiplier), vector_size / sizeof(float));
+							free(x);
+							free(y);
+						}
+
 						SYSTEMTIME start, end;
 						unsigned int samples;			
 						pf_data.global_sizes = global_sizes;

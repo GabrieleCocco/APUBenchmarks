@@ -1,45 +1,47 @@
 #include "computation.h"
 
-void computeInput(float* pointer, unsigned int width, unsigned int height) {
-	for(unsigned int i = 0; i < height; i++) {
-		for(unsigned int j = 0; j < width; j++) 
-			pointer[i * width + j] = (float)j / 100;
+void computeInput(float* a, float* b, unsigned int width_a, unsigned int height_a, unsigned int width_b, unsigned int offset) {
+	srand(time(NULL));
+
+	unsigned int height_b = width_a;
+
+	for(unsigned int i = 0; i < height_a; i++) {
+		for(unsigned int j = 0; j < width_a; j++) 
+			a[i * width_a + j] = 1;
+	}
+	for(unsigned int i = 0; i < height_b; i++) {
+		for(unsigned int j = 0; j < width_b; j++) 
+			b[i * width_b + j] = 1;
 	}
 }
 
-float* computeOutput(float* matA, float* matB, unsigned int width_a, unsigned int height_a) {
+void computeOutput(float* a, float* b, float* c, unsigned int width_a, unsigned int height_a, unsigned int width_b) {
 	unsigned int height_b = width_a;
-	unsigned int width_b = height_a;
 	unsigned int height_c = height_a;
 	unsigned int width_c = width_b;
 
-	float* matC = (float*) malloc(width_c * height_c * sizeof(float));
     for (unsigned int i = 0; i < height_a; ++i) {
         for (unsigned int j = 0; j < width_b; ++j) {
             double sum = 0;
             for (unsigned int k = 0; k < width_a; ++k) {
-                double a = matA[i * width_a + k];
-                double b = matB[k * width_b + j];
-                sum += a * b;
+                sum += a[i * width_a + k] * b[k * width_b + j];
             }
-            matC[i * width_c + j] = (float)sum;
+            c[i * width_c + j] = (float)sum;
         }
 	}
-	return matC;
 }
 
-bool verify(float* a, float* b, int size) {
-	printf("Verifying...\n");
+bool verifyOutput(float* test, float* reference, int width, int height, int reference_offset) {
 	int i = 0;
-	int err = 0;
-	for(i = 0; i < size && !err; i++) {
-		//Approximate to the second decimal
-		float diff = b[i] - a[i];
-		diff = diff < 0 ? -diff: diff;
-		if(diff > 0.1) {
-			err = 1;
-			std::cout << "DIFFERENCE " << i << ": A = " << a[i] << ", B = " << b[i] << std::endl;
-			return false;
+	for(i = 0; i < height; i++) {
+		for(int j = 0; j < width; j++) {
+			//Approximate to the second decimal
+			float diff = reference[(i + reference_offset) * width + j] - test[i * width + j];
+			diff = diff < 0 ? -diff: diff;
+			if(diff > 1) {
+				std::cout << "DIFF in REF[" << (i + reference_offset) << "][" << j << "], TEST[" << i << "][" << j << "] : REF = " << reference[(i + reference_offset) * width + j] << ", TEST = " << test[i * width + j] << std::endl;
+				return false;
+			}
 		}
 	}
 	return true;
@@ -80,19 +82,14 @@ DWORD WINAPI runThreadComputation(LPVOID iValue) {
 CLProfilingResult runHostComputation(void* data) {
 	MatrixMultProfilingData* pf_data = (MatrixMultProfilingData*)data;
 
-	CLEnvironment* env = pf_data->env;
-	cl_kernel kernel = pf_data->kernel;
-	unsigned int width_a = pf_data->width_a;
-	unsigned int height_a = pf_data->height_a;
-	unsigned int threads = pf_data->cpu_threads;
-	cl_mem_flags src_flags = pf_data->src_flags; 
-	cl_mem_flags dst_flags = pf_data->dst_flags; 
-	int map_src = pf_data->map_src;
-	int map_dst = pf_data->map_dst;
+	unsigned int width_a = pf_data->a_data_sizes[0].width;
+	unsigned int height_a = pf_data->a_data_sizes[0].height;
+	unsigned int width_b = pf_data->b_data_sizes[0].width;
+
+	unsigned int threads = pf_data->global_sizes[0].height;
 	bool verify_output = pf_data->verify_output;
 
 	unsigned int height_b = width_a;
-	unsigned int width_b = height_a;
 	unsigned int height_c = height_a;
 	unsigned int width_c = width_b;
 	
@@ -113,8 +110,7 @@ CLProfilingResult runHostComputation(void* data) {
 
 	//init matrix
 	init_timer.start();
-	computeInput(matA, width_a, height_a);
-	computeInput(matB, width_b, height_b);
+	computeInput(matA, matB, width_a, height_a, width_b, 0);
 	result.init_time = init_timer.get();
 
 	unsigned int thread_index = 0;
@@ -175,11 +171,8 @@ CLProfilingResult runHostComputation(void* data) {
 	}
 
 	/* Verify result */
-	if(verify_output) {
-		float* ref = computeOutput(matA, matB, width_a, height_a);
-		result.success = verify(matC, ref, width_c * height_c);
-		free(ref);
-	}
+	if(verify_output) 
+		result.success = verifyOutput(matC, pf_data->reference, width_c, height_c, 0);
 
 free:
 	for(unsigned int i = 0; i < thread_index; i++) 
@@ -197,219 +190,22 @@ free:
 	return result;
 }
 
-CLProfilingResult runHostGpuComputation(void* data) {
-	MatrixMultProfilingData* pf_data = (MatrixMultProfilingData*)data;
+DWORD WINAPI handleComputation(void* data) {
+	cl_int error = CL_SUCCESS;
 
-	CLEnvironment* env = pf_data->env;
-	cl_kernel kernel = pf_data->kernel;
-	unsigned int width_a = pf_data->width_a;
-	unsigned int height_a = pf_data->height_a;
-	unsigned int threads = pf_data->cpu_threads;
-	unsigned int block_size = pf_data->block_size;
-	cl_mem_flags src_flags = pf_data->src_flags; 
-	cl_mem_flags dst_flags = pf_data->dst_flags; 
-	int map_src = pf_data->map_src;
-	int map_dst = pf_data->map_dst;
-	bool verify_output = pf_data->verify_output;
+	MatrixMultDeviceData* device_data = (MatrixMultDeviceData*)data;
+	MatrixMultProfilingData* pf_data = device_data->profiling_data;
+	unsigned int device_index = device_data->index;
 	
-	unsigned int height_b = width_a;
-	unsigned int width_b = height_a;
-	unsigned int height_c = height_a;
-	unsigned int width_c = width_b;
-	 
-	unsigned int height_a_per_device = height_a / 2;
-	unsigned int height_c_per_device = height_c / 2;
+	cl_context context = pf_data->environments[device_index].context;
+	cl_command_queue queue = pf_data->environments[device_index].queue;
+	cl_kernel kernel = pf_data->environments[device_index].kernels[pf_data->kernel_index[device_index]];
 
-	Timer exec_timer, alloc_timer, init_timer, read_timer;	
-	// matA and matB shared between CPU threads and GPU (cause read-only)
-	float* matA = NULL;
-	float* matB = NULL;
-	float* matC_CPU = NULL;
-	float* matC_GPU = NULL;
-    cl_mem bufA;
-    cl_mem bufC;
-    cl_mem bufB;
-	CLProfilingResult result;
-	result.alloc_time = result.init_time = result.exec_time = result.read_time = 0;
-	result.success = 1;
+	unsigned int width_a = pf_data->a_data_sizes[device_index].width;
+	unsigned int height_a = pf_data->a_data_sizes[device_index].height;
+	unsigned int width_b = pf_data->b_data_sizes[device_index].width;
+	unsigned int block_size = pf_data->local_sizes[device_index].width;
 
-	// GPU part 
-	//alloc vectors
-	if(!map_src) {
-		alloc_timer.start();
-		matA = (float*)malloc(width_a * height_a * sizeof(float));
-		matB = (float*)malloc(height_b * width_b * sizeof(float));
-		bufA = clCreateBuffer(env->context, src_flags, width_a * height_a_per_device * sizeof(float), NULL, NULL);
-		bufB = clCreateBuffer(env->context, src_flags, height_b * width_b * sizeof(float), NULL, NULL);
-		//Only the part written by the GPU
-		bufC = clCreateBuffer(env->context, dst_flags, height_c * height_c_per_device * sizeof(float), NULL, NULL);
-		result.alloc_time = alloc_timer.get();
-	}
-	else {
-		alloc_timer.start();
-		bufA = clCreateBuffer(env->context, src_flags, width_a * height_a * sizeof(float), NULL, NULL);
-		bufB = clCreateBuffer(env->context, src_flags, height_b * width_b * sizeof(float), NULL, NULL);
-		//Only the part written by the GPU
-		bufC = clCreateBuffer(env->context, dst_flags, width_c * height_c_per_device * sizeof(float), NULL, NULL);
-		result.alloc_time = alloc_timer.get();
-	}
-
-	//init data
-	if(map_src) {
-		init_timer.start();
-		matA = (float*)clEnqueueMapBuffer(env->queue, bufA, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * width_a * height_a, 0, NULL, NULL, NULL);
-		matB = (float*)clEnqueueMapBuffer(env->queue, bufB, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * width_b * height_b, 0, NULL, NULL, NULL);
-		
-		computeInput(matA, width_a, height_a);
-		computeInput(matB, width_b, height_b);
-		//Unmap to actuate writes
-		clEnqueueUnmapMemObject(env->queue, bufA, matA, 0, NULL, NULL);
-		clEnqueueUnmapMemObject(env->queue, bufB, matB, 0, NULL, NULL);
-		//Remap for CPU usage
-		matA = (float*)clEnqueueMapBuffer(env->queue, bufA, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_a * height_a, 0, NULL, NULL, NULL);
-		matB = (float*)clEnqueueMapBuffer(env->queue, bufB, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_b * height_b, 0, NULL, NULL, NULL);
-	
-		result.init_time = init_timer.get();
-	}
-	else {
-		init_timer.start();
-		computeInput(matA, width_a, height_a);
-		computeInput(matB, width_b, height_b);
-		//In case of transfer, trasfer only the half of A for the GPU
-		clEnqueueWriteBuffer(env->queue, bufA, CL_TRUE, 0, width_a * height_a_per_device * sizeof(float), matA, 0, NULL, NULL);
-		clEnqueueWriteBuffer(env->queue, bufB, CL_TRUE, 0, height_b * width_b * sizeof(float), matB, 0, NULL, NULL);
-		result.init_time = init_timer.get();
-	}
-	
-	//GPU part
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &bufC);
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &bufA);
-    clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &bufB);
-    clSetKernelArg(kernel, 3, sizeof(cl_int), (void *) &width_a);
-	//Tell the GPU half the size of A
-    clSetKernelArg(kernel, 4, sizeof(cl_int), (void *) &width_b);
-	
-    size_t localWorkSize[] = {block_size, block_size};
-    size_t globalWorkSize[] = {width_c, height_c_per_device};
-	
-
-	//CPU part
-	alloc_timer.start();
-	matC_CPU = (float*)malloc(width_c * height_c_per_device * sizeof(float));
-	result.alloc_time += alloc_timer.get();
-	
-	unsigned int rows_per_thread = height_a_per_device / threads;
-	unsigned int thread_index = 0;
-	HANDLE* thread_handles = NULL;
-	int** params = NULL;
-
-	exec_timer.start();
-	thread_handles = (HANDLE*)malloc(threads * sizeof(HANDLE)); 
-	params = (int**)malloc(threads * sizeof(int*));
-	for(thread_index = 0; thread_index < threads; thread_index++) {
-		params[thread_index] = (int*)malloc(8 * sizeof(int));
-		params[thread_index][0] = (int)matA;
-		params[thread_index][1] = (int)matB;
-		params[thread_index][2] = (int)matC_CPU;
-		params[thread_index][3] = width_a;
-		params[thread_index][4] = height_a_per_device;
-		params[thread_index][5] = width_b;
-		params[thread_index][6] = rows_per_thread;
-		params[thread_index][7] = thread_index;
-		
-		//Assume size = N * threads
-		
-		DWORD dwGenericThread;
-		thread_handles[thread_index] = CreateThread(
-			NULL,
-			0,
-			runThreadComputation,
-			params[thread_index],
-			0,
-			&dwGenericThread);
-
-
-		if(thread_handles[thread_index] == NULL) {
-			result.success = 0;
-			goto free;
-		}
-	}
-
-	cl_int err = clEnqueueNDRangeKernel(env->queue, kernel, 2, 0, globalWorkSize, localWorkSize, 0, NULL, NULL);
-		
-	//read result
-	if(map_dst) {
-		read_timer.start();
-		matC_GPU = (float*)clEnqueueMapBuffer(env->queue, bufC, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_c * height_c_per_device, 0, NULL, NULL, &err);
-		if(err)
-			printf("ERR\n");
-		result.read_time = read_timer.get();
-	}
-	else {
-		read_timer.start();
-		matC_GPU = (float*)malloc(width_c * height_c_per_device * sizeof(float));
-		err = clEnqueueReadBuffer(env->queue, bufC, CL_TRUE, 0, width_c * height_c_per_device * sizeof(float), matC_GPU, 0, NULL, NULL);
-		if(err)
-			printf("ERR\n");
-		result.read_time = read_timer.get();
-	}
-	
-	//clFinish(env->queue);
-	for(unsigned int i = 0; i < threads; i++)
-		WaitForSingleObject(thread_handles[i],INFINITE);
-
-	result.exec_time = exec_timer.get();
-
-	// Verify result 
-	if(verify_output) {	
-		float* ref = computeOutput(matA, matB, width_a, height_a);
-		bool ok_cpu = verify(matC_CPU, ref + (width_c * height_c_per_device), width_c * height_c_per_device);
-		bool ok_gpu = verify(matC_GPU, ref, width_c * height_c_per_device);
-		result.success = ok_cpu & ok_gpu;
-		free(ref);
-	}
-	if(!result.success)
-		std::cout << "Computation failed!" << std::endl;
-	
-free:
-	for(unsigned int i = 0; i < thread_index; i++) 
-		free(params[i]);
-	free(params);
-	free(thread_handles);
-	free(matC_CPU);
-	
-	// Free resources 
-	if(map_src) {
-		clEnqueueUnmapMemObject(env->queue, bufA, matA, 0, NULL, NULL);
-		clEnqueueUnmapMemObject(env->queue, bufB, matB, 0, NULL, NULL);
-	}	
-	else {
-		free(matA);
-		free(matB);
-	}
-	clReleaseMemObject(bufA);
-	clReleaseMemObject(bufB);
-
-	if(map_dst) 
-		clEnqueueUnmapMemObject(env->queue, bufC, matC_GPU, 0, NULL, NULL);
-	else
-		free(matC_GPU);
-	clReleaseMemObject(bufC);
-	
-	if(!result.success)
-		std::cout << "Computation failed!" << std::endl;
-	return result;
-}
-
-CLProfilingResult runGpuComputation(void* data) {
-	MatrixMultProfilingData* pf_data = (MatrixMultProfilingData*)data;
-
-	CLEnvironment* env = pf_data->env;
-	cl_kernel kernel = pf_data->kernel;
-	unsigned int width_a = pf_data->width_a;
-	unsigned int height_a = pf_data->height_a;
-	unsigned int threads = pf_data->cpu_threads;
-	unsigned int block_size = pf_data->block_size;
 	cl_mem_flags src_flags = pf_data->src_flags; 
 	cl_mem_flags dst_flags = pf_data->dst_flags; 
 	int map_src = pf_data->map_src;
@@ -417,11 +213,9 @@ CLProfilingResult runGpuComputation(void* data) {
 	bool verify_output = pf_data->verify_output;
 		
 	unsigned int height_b = width_a;
-	unsigned int width_b = height_a;
 	unsigned int height_c = height_a;
 	unsigned int width_c = width_b;
 
-	Timer exec_timer, alloc_timer, init_timer, read_timer;
 	float* pA = NULL;
 	float* pB = NULL;
 	float* pC = NULL;
@@ -429,101 +223,67 @@ CLProfilingResult runGpuComputation(void* data) {
     cl_mem bufC;
     cl_mem bufB;
 	CLProfilingResult result;
-	result.alloc_time = result.init_time = result.exec_time = result.read_time = 0;
 	result.success = 1;
-	
-	cl_int err;
+
 	//alloc vectors
 	if(!map_src) {
-		alloc_timer.start();
 		pA = (float*)malloc(width_a * height_a * sizeof(float));
-		pB = (float*)malloc(height_a * width_a * sizeof(float));
-		bufA = clCreateBuffer(env->context, src_flags, width_a * height_a * sizeof(float), NULL, &err);
-		bufB = clCreateBuffer(env->context, src_flags, height_b * width_b * sizeof(float), NULL, &err);
-		bufC = clCreateBuffer(env->context, dst_flags, height_c * height_c * sizeof(float), NULL, &err);
-		result.alloc_time = alloc_timer.get();
+		pB = (float*)malloc(width_b * height_b * sizeof(float));
 	}
-	else {
-		alloc_timer.start();
-		bufA = clCreateBuffer(env->context, src_flags, width_a * height_a * sizeof(float), NULL, &err);
-		bufB = clCreateBuffer(env->context, src_flags, height_b * width_b * sizeof(float), NULL, &err);
-		bufC = clCreateBuffer(env->context, dst_flags, height_c * height_c * sizeof(float), NULL, &err);
-		result.alloc_time = alloc_timer.get();
-	}
+	bufA = clCreateBuffer(context, src_flags, width_a * height_a * sizeof(float), NULL, &error);
+	bufB = clCreateBuffer(context, src_flags, height_b * width_b * sizeof(float), NULL, &error);
+	bufC = clCreateBuffer(context, dst_flags, width_c * height_c * sizeof(float), NULL, &error);
 
 	//init data
 	if(map_src) {
-		init_timer.start();
-		pA = (float*)clEnqueueMapBuffer(env->queue, bufA, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * width_a * height_a, 0, NULL, NULL, &err);
-		pB = (float*)clEnqueueMapBuffer(env->queue, bufB, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * height_b * width_b, 0, NULL, NULL, &err);
-		computeInput(pA, width_a, height_a);
-		computeInput(pB, width_b, height_b);
-		clEnqueueUnmapMemObject(env->queue, bufA, pA, 0, NULL, NULL);
-		clEnqueueUnmapMemObject(env->queue, bufB, pB, 0, NULL, NULL);
-		result.init_time = init_timer.get();
+		pA = (float*)clEnqueueMapBuffer(queue, bufA, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * width_a * height_a, 0, NULL, NULL, &error);
+		pB = (float*)clEnqueueMapBuffer(queue, bufB, CL_TRUE, CL_MAP_WRITE, 0, sizeof(float) * height_b * width_b, 0, NULL, NULL, &error);
+	}
+	computeInput(pA, pB, width_a, height_a, width_b, device_data->offset);
+	if(map_src) {
+		clEnqueueUnmapMemObject(queue, bufA, pA, 0, NULL, NULL);
+		clEnqueueUnmapMemObject(queue, bufB, pB, 0, NULL, NULL);
 	}
 	else {
-		init_timer.start();
-		computeInput(pA, width_a, height_a);
-		computeInput(pB, width_b, height_b);
-		clEnqueueWriteBuffer(env->queue, bufA, CL_TRUE, 0, width_a * height_a * sizeof(float), pA, 0, NULL, NULL);
-		clEnqueueWriteBuffer(env->queue, bufB, CL_TRUE, 0, height_b * width_b * sizeof(float), pB, 0, NULL, NULL);
-		result.init_time = init_timer.get();
+		clEnqueueWriteBuffer(queue, bufA, CL_TRUE, 0, width_a * height_a * sizeof(float), pA, 0, NULL, NULL);
+		clEnqueueWriteBuffer(queue, bufB, CL_TRUE, 0, height_b * width_b * sizeof(float), pB, 0, NULL, NULL);
 	}
 	
     clSetKernelArg(kernel, 0, sizeof(cl_mem), (void *) &bufC);
     clSetKernelArg(kernel, 1, sizeof(cl_mem), (void *) &bufA);
     clSetKernelArg(kernel, 2, sizeof(cl_mem), (void *) &bufB);
     clSetKernelArg(kernel, 3, sizeof(cl_int), (void *) &width_a);
-    clSetKernelArg(kernel, 4, sizeof(cl_int), (void *) &width_b);
+    clSetKernelArg(kernel, 4, sizeof(cl_int), (void *) &height_a);
+    clSetKernelArg(kernel, 5, sizeof(cl_int), (void *) &width_b);
 	
-    size_t localWorkSize[] = {block_size, block_size};
-    size_t globalWorkSize[] = {width_c, height_c};
+    size_t localWorkSize[] = { block_size, block_size };
+    size_t globalWorkSize[] = { clRoundUp(width_c, block_size), clRoundUp(height_c, block_size) };
 	// Multiplication - non-blocking execution:  launch and push to device(s)
 	
-	exec_timer.start();
-	err = clEnqueueNDRangeKernel(env->queue, kernel, 2, 0, globalWorkSize, localWorkSize, 0, NULL, NULL);
-	clFinish(env->queue);
-	result.exec_time = exec_timer.get();
+	error = clEnqueueNDRangeKernel(queue, kernel, 2, 0, globalWorkSize, localWorkSize, 0, NULL, NULL);
+	clFinish(queue);
 
 	//read result
 	if(map_dst) {
-		cl_int err;
-		read_timer.start();
-		pC = (float*)clEnqueueMapBuffer(env->queue, bufC, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_c * height_c, 0, NULL, NULL, &err);
-		if(err)
+		pC = (float*)clEnqueueMapBuffer(queue, bufC, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_c * height_c, 0, NULL, NULL, &error);
+		if(error != CL_SUCCESS)
 			printf("ERR\n");
-		result.read_time = read_timer.get();
 	}
 	else {
-		cl_int err;
-		read_timer.start();
-		pC = (float*)malloc(height_a * height_a * sizeof(float));
-		err = clEnqueueReadBuffer(env->queue, bufC, CL_TRUE, 0, width_c * height_c * sizeof(float), pC, 0, NULL, NULL);
-		if(err)
+		pC = (float*)malloc(width_c * height_c * sizeof(float));
+		error = clEnqueueReadBuffer(queue, bufC, CL_TRUE, 0, width_c * height_c * sizeof(float), pC, 0, NULL, NULL);
+		if(error != CL_SUCCESS)
 			printf("ERR\n");
-		result.read_time = read_timer.get();
 	}
 
 	/* Verify result */
-	if(verify_output) { 
-		if(map_src) {
-			pA = (float*)clEnqueueMapBuffer(env->queue, bufA, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * width_a * height_a, 0, NULL, NULL, &err);
-			pB = (float*)clEnqueueMapBuffer(env->queue, bufB, CL_TRUE, CL_MAP_READ, 0, sizeof(float) * height_b * width_b, 0, NULL, NULL, &err);
-		}
-		float* ref = computeOutput(pA, pB, width_a, height_a);
-		if(map_src) {
-			clEnqueueUnmapMemObject(env->queue, bufA, pA, 0, NULL, NULL);
-			clEnqueueUnmapMemObject(env->queue, bufB, pB, 0, NULL, NULL);
-		}
-		result.success = verify(pC, ref, width_c * height_c);
-		free(ref);
-	}
+	if(verify_output) 
+		result.success = verifyOutput(pC, pf_data->reference, width_c, height_c, device_data->offset);
 
 	/* Free resources */
 	if(map_src) {
-		clEnqueueUnmapMemObject(env->queue, bufA, pA, 0, NULL, NULL);
-		clEnqueueUnmapMemObject(env->queue, bufB, pB, 0, NULL, NULL);
+		clEnqueueUnmapMemObject(queue, bufA, pA, 0, NULL, NULL);
+		clEnqueueUnmapMemObject(queue, bufB, pB, 0, NULL, NULL);
 	}
 	else {
 		free(pA);
@@ -533,12 +293,68 @@ CLProfilingResult runGpuComputation(void* data) {
 	clReleaseMemObject(bufB);
 
 	if(map_dst) 
-		clEnqueueUnmapMemObject(env->queue, bufC, pC, 0, NULL, NULL);
+		clEnqueueUnmapMemObject(queue, bufC, pC, 0, NULL, NULL);
 	else
 		free(pC);
 	clReleaseMemObject(bufC);
 	
 	if(!result.success) 
 		std::cout << "Computation failed!" << std::endl;
+
+	return 0;
+}
+
+CLProfilingResult runDeviceComputation(void* data) {
+	CLProfilingResult result;
+	result.success = true;
+
+	MatrixMultProfilingData* profiling_data = (MatrixMultProfilingData*)data;
+	MatrixMultDeviceData device_data;
+	device_data.index = 0;
+	device_data.offset = 0;
+	device_data.profiling_data = profiling_data;
+	
+	handleComputation(&device_data);
+	return result;
+}
+
+CLProfilingResult runHeteroSeparatedComputation(void* data) {
+	MatrixMultProfilingData* pf_data = (MatrixMultProfilingData*)data;
+	CLProfilingResult result;
+	result.success = true;
+
+	HANDLE* thread_handles = (HANDLE*)malloc(pf_data->device_count * sizeof(HANDLE)); 
+	MatrixMultDeviceData* params = (MatrixMultDeviceData*)malloc(pf_data->device_count * sizeof(MatrixMultDeviceData));
+
+	unsigned int offset = 0;
+	for(unsigned int i = 0; i < pf_data->device_count; i++) {
+		params[i].profiling_data = pf_data;
+		params[i].offset = offset;
+		params[i].index = i;
+		offset += pf_data->a_data_sizes[i].height;
+		
+		//Assume size = N * threads
+		DWORD dwGenericThread;
+		thread_handles[i] = CreateThread(
+			NULL,
+			0,
+			handleComputation,
+			&params[i],
+			0,
+			&dwGenericThread);
+			
+		if(thread_handles[i] == NULL) {
+			DWORD dwError = GetLastError();
+			std::cout<<"SCM:Error in Creating thread"<<dwError<<std::endl ;
+		}
+	}
+
+	for(unsigned int i = 0; i < pf_data->device_count; i++)
+		WaitForSingleObject(thread_handles[i], INFINITE);
+		
+	/* Free thread resource */
+	free(thread_handles);
+	free(params);
+
 	return result;
 }

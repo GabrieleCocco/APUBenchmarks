@@ -1,13 +1,18 @@
 #include "computations.h"
 
-void initVectorPair(float* x, float* y, unsigned int size) {	
+void computeInput(float* x, float* y, unsigned int size) {	
 	for(unsigned int i = 0; i < size; i++) {
 		x[i] = float(i);
 		y[i] = float(size  -1 - i);
 	}
 }
 
-bool verify(float* first, float* second, unsigned int size) {
+void computeOutput(float* x, float* y, float* output, float a, unsigned int size) {	
+	for(unsigned int i = 0; i < size; i++) 
+		output[i] = a * x[i] + y[i];
+}
+
+bool verifyOutput(float* first, float* second, unsigned int size) {
 	for(unsigned int i = 0; i < size; i++) {
 		if(first[i] != second[i])
 			return false;
@@ -50,7 +55,7 @@ CLProfilingResult runHostComputation(void* data) {
 	x_pointer = (float*) malloc(size * sizeof(float));
 	y_pointer = (float*) malloc(size * sizeof(float));	
 	
-	initVectorPair(x_pointer, y_pointer, size);
+	computeInput(x_pointer, y_pointer, size);
 	
 	if(global_size == 1) {
 		for (unsigned int i = 0; i < size; i++) 
@@ -95,7 +100,7 @@ CLProfilingResult runHostComputation(void* data) {
 	/* Verify result */
 	bool ok = true;
 	if(verify_output)
-		ok = verify(y_pointer, reference, size);
+		ok = verifyOutput(y_pointer, reference, size);
 	if(!ok)
 		std::cout << "Computation failed!" << std::endl;
 
@@ -191,7 +196,7 @@ DWORD WINAPI handleComputation(void* data) {
 		clEnqueueReadBuffer(environment.queue, y_buffer, CL_TRUE, 0, data_size * type_size * sizeof(float), y, 0, NULL, NULL);		
 	
 	if(h_data->profiling_data->verify_output) {
-		ok &= verify(y, h_data->profiling_data->reference + offset, data_size * type_size);		
+		ok &= verifyOutput(y, h_data->profiling_data->reference + offset, data_size * type_size);		
 		if(!ok)
 			std::cout << "Computation failed!" << std::endl;
 	}

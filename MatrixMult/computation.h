@@ -1,6 +1,6 @@
-#include <CLEnvironment.h>
-#include <CLProfiling.h>
-#include <CLSize.h>
+#include "CLEnvironment.h"
+#include "CLProfiling.h"
+#include "CLSize.h"
 #include <time.h>
 
 #define MAX_DEV_COUNT 4

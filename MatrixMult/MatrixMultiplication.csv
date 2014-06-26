@@ -1,0 +1,15 @@
+PLATFORM;DEVICE;READ MODE;WRITE MODE;INPUT FLAGS;OUTPUT FLAGS;SIZE;TIME;ITERATIONS
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;4096;0.37;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;16384;0.54;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;36864;1.01;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;65536;0.87;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;102400;1.19;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;147456;1.4;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;200704;1.88;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;262144;2.23;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;331776;2.96;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;409600;3.62;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;495616;4.56;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;589824;4.88;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;692224;5.75;100
+0;0 Tahiti;EnqueueReadBuffer;EnqueueWriteBuffer;CL_MEM_READ_ONLY;CL_MEM_WRITE_ONLY;802816;6.78;100

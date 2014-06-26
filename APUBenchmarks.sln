@@ -1,6 +1,8 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CLUtil", "CLUtil\CLUtil.vcxproj", "{55842953-E9FE-4B79-B72C-71791941A5A0}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Saxpy", "Saxpy\Saxpy.vcxproj", "{DEE3723F-7A6A-423D-B8AC-AC5694B17D5D}"
@@ -13,7 +15,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CLUtilLib", "CLUtilLib\CLUt
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SaxpyLib", "SaxpyLib\SaxpyLib.vcxproj", "{71AEF406-0A27-47ED-B577-21A73F4D1DEA}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BenchmarkRunner", "BenchmarkRunner\BenchmarkRunner.vcxproj", "{3D06DB74-2659-4DCB-883B-ED01E49DB6ED}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SimpleVectorAdd", "SimpleVectorAdd\SimpleVectorAdd.vcxproj", "{3CF92C14-CEA6-467E-AE15-612FD378AE60}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -45,10 +47,10 @@ Global
 		{71AEF406-0A27-47ED-B577-21A73F4D1DEA}.Debug|Win32.Build.0 = Debug|Win32
 		{71AEF406-0A27-47ED-B577-21A73F4D1DEA}.Release|Win32.ActiveCfg = Release|Win32
 		{71AEF406-0A27-47ED-B577-21A73F4D1DEA}.Release|Win32.Build.0 = Release|Win32
-		{3D06DB74-2659-4DCB-883B-ED01E49DB6ED}.Debug|Win32.ActiveCfg = Debug|Win32
-		{3D06DB74-2659-4DCB-883B-ED01E49DB6ED}.Debug|Win32.Build.0 = Debug|Win32
-		{3D06DB74-2659-4DCB-883B-ED01E49DB6ED}.Release|Win32.ActiveCfg = Release|Win32
-		{3D06DB74-2659-4DCB-883B-ED01E49DB6ED}.Release|Win32.Build.0 = Release|Win32
+		{3CF92C14-CEA6-467E-AE15-612FD378AE60}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3CF92C14-CEA6-467E-AE15-612FD378AE60}.Debug|Win32.Build.0 = Debug|Win32
+		{3CF92C14-CEA6-467E-AE15-612FD378AE60}.Release|Win32.ActiveCfg = Release|Win32
+		{3CF92C14-CEA6-467E-AE15-612FD378AE60}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

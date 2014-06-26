@@ -7,11 +7,11 @@ void computeInput(float* a, float* b, unsigned int width_a, unsigned int height_
 
 	for(unsigned int i = 0; i < height_a; i++) {
 		for(unsigned int j = 0; j < width_a; j++) 
-			a[i * width_a + j] = 1;
+			a[i * width_a + j] = 2.0;
 	}
 	for(unsigned int i = 0; i < height_b; i++) {
 		for(unsigned int j = 0; j < width_b; j++) 
-			b[i * width_b + j] = 1;
+			b[i * width_b + j] = 3.0;
 	}
 }
 

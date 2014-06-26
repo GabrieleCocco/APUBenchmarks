@@ -3,8 +3,8 @@
 
 #define MAX_DEV_COUNT 4
 
-#include <CLEnvironment.h>
-#include <CLProfiling.h>
+#include "CLEnvironment.h"
+#include "CLProfiling.h"
 
 typedef struct SaxpyProfilingData {
 	CLDeviceEnvironment* environments;
@@ -39,5 +39,5 @@ CLProfilingResult runHeteroSeparatedComputation(void* data);
 DWORD WINAPI handleComputation(void* data);
 
 void computeInput(float* x, float* y, unsigned int size);
-void computeOutput(float* x, float* y, float* output, float a, unsigned int size);
+void computeOutput(float* x, float* y, float* output, unsigned int size);
 #endif
